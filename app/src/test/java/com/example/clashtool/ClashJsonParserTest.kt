@@ -21,20 +21,34 @@ class ClashJsonParserTest {
         assertTrue(result.isSuccess)
         val data = result.getOrThrow()
         assertEquals("#GCU9YYP2Y", data.playerTag)
-        assertEquals(14, data.townHallLevel)
+        // 验证大本营等级：根据 1000001 为 18 本，而不是误将 1000000 兵营识别为 14 本
+        assertEquals(18, data.townHallLevel)
 
         val runningTasks = data.activeTasks.filter { it.isRunning }
-        // 应该包括：
-        // 建筑升级：大本营 (timer: 72092), 大本营 (timer: 125024), 投石炮 (timer: 150723), 巨石碑 (timer: 196843), 多人箭塔 x 2 (timer: 127197, 142107), 额外学徒大本营 (timer: 125048)
-        // 兵种升级：弓箭手 (timer: 575393), 学徒研究 (timer: 65461)
-        // 战宠升级：贪婪渡鸦 (timer: 266707)
         assertTrue(runningTasks.isNotEmpty())
-        
+
+        // 验证建筑升级：1000000 必须被正确识别为「兵营」，而不是「大本营」
+        val armyCampTasks = runningTasks.filter { it.targetName.contains("兵营") }
+        assertEquals(3, armyCampTasks.size) // 2个普通兵营升级 + 1个学徒加速兵营
+
+        // 验证升级项目里绝无错误的「大本营」
+        val thTasks = runningTasks.filter { it.targetName.contains("大本营") }
+        assertTrue("升级项目中不应包含大本营", thTasks.isEmpty())
+
         // 验证名字符合部落小站规范
         assertTrue(runningTasks.any { it.targetName.contains("投石炮") })
         assertTrue(runningTasks.any { it.targetName.contains("巨石碑") })
-        assertTrue(runningTasks.any { it.targetName.contains("多人箭塔") })
+        assertTrue(runningTasks.any { it.targetName.contains("火焰喷射器") }) // 1000089 为火焰喷射器
         assertTrue(runningTasks.any { it.targetName.contains("弓箭手") })
         assertTrue(runningTasks.any { it.targetName.contains("贪婪渡鸦") })
+
+        // 验证学徒工人与学徒研究
+        assertTrue(runningTasks.any { it.slotName.contains("建筑工人学徒") })
+        assertTrue(runningTasks.any { it.slotName.contains("实验室学徒") })
+
+        // 验证倒计时时间精准对齐（不扣除 cross-machine 差异）
+        val campTask1 = runningTasks.first { it.targetName == "兵营 升至 Lv.14" }
+        assertEquals(72092 * 1000L, campTask1.totalDurationMs)
+        assertTrue(campTask1.remainingMs in (72092 * 1000L - 1000L)..(72092 * 1000L))
     }
 }

@@ -25,9 +25,7 @@ object ClashJsonParser {
             val root = JSONObject(jsonString.trim())
             val tag = root.optString("tag", "#UNKNOWN")
             val exportTimestampSec = root.optLong("timestamp", System.currentTimeMillis() / 1000L)
-            val exportTimeMs = exportTimestampSec * 1000L
             val nowMs = System.currentTimeMillis()
-            val elapsedMs = (nowMs - exportTimeMs).coerceAtLeast(0L)
 
             val taskList = mutableListOf<ClashTask>()
 
@@ -43,22 +41,33 @@ object ClashJsonParser {
                     val dataId = b.optInt("data", 0)
                     val lvl = b.optInt("lvl", 1)
 
-                    if (dataId == 1000000) {
+                    // 大本营内部真实数据 ID 为 1000001 (1000000 为兵营 Army Camp)
+                    if (dataId == 1000001) {
                         if (lvl > thLevel) thLevel = lvl
                     }
 
                     if (b.has("timer")) {
                         val timerSec = b.optLong("timer", 0L)
-                        val remainingMs = (timerSec * 1000L - elapsedMs).coerceAtLeast(0L)
+                        // 游戏导出的 timer 即为当前剩余秒数，直接基于当前时间精确倒计时，避免跨机时钟漂移
+                        val remainingMs = (timerSec * 1000L).coerceAtLeast(0L)
                         val buildingName = getBuildingName(dataId)
                         val isExtra = b.optBoolean("extra", false)
 
-                        val (slotTitle, taskId) = if (isExtra) {
-                            Pair("建筑工人 (学徒/额外 $extraIndex)", "${accountId}_hb_extra_${extraIndex++}")
+                        val (slotTitle, taskId, targetTitle) = if (isExtra) {
+                            val extraSlotName = if (extraIndex == 1) "建筑工人学徒 (协助加速)" else "建筑工人学徒 (加速 $extraIndex)"
+                            Triple(
+                                extraSlotName,
+                                "${accountId}_hb_extra_${extraIndex++}",
+                                "协助加速 $buildingName (升至 Lv.${lvl + 1})"
+                            )
                         } else {
                             val idx = builderIndex++
                             val name = if (idx == 6) "建筑工人 6号 (小博/奥豆)" else "建筑工人 ${idx}号"
-                            Pair(name, "${accountId}_hb_$idx")
+                            Triple(
+                                name,
+                                "${accountId}_hb_$idx",
+                                "$buildingName 升至 Lv.${lvl + 1}"
+                            )
                         }
 
                         val task = ClashTask(
@@ -67,9 +76,9 @@ object ClashJsonParser {
                             accountName = accountName,
                             category = TaskCategory.HOME_BUILDER,
                             slotName = slotTitle,
-                            targetName = "$buildingName 升至 Lv.${lvl + 1}",
-                            startTimeMs = nowMs - 1000L,
-                            totalDurationMs = remainingMs + 1000L,
+                            targetName = targetTitle,
+                            startTimeMs = nowMs,
+                            totalDurationMs = remainingMs,
                             isRunning = remainingMs > 0L
                         )
                         taskList.add(task)
@@ -96,7 +105,7 @@ object ClashJsonParser {
                 builderIndex++
             }
 
-            // 2. 解析实验室科技升级 (units / spells)
+            // 2. 解析实验室科技升级 (units / spells / siege_machines)
             var labFound = false
             val unitsArr = root.optJSONArray("units")
             if (unitsArr != null) {
@@ -106,11 +115,12 @@ object ClashJsonParser {
                         val dataId = u.optInt("data", 0)
                         val lvl = u.optInt("lvl", 1)
                         val timerSec = u.optLong("timer", 0L)
-                        val remainingMs = (timerSec * 1000L - elapsedMs).coerceAtLeast(0L)
+                        val remainingMs = (timerSec * 1000L).coerceAtLeast(0L)
                         val unitName = getUnitName(dataId)
                         val isExtra = u.optBoolean("extra", false)
 
-                        val slotName = if (isExtra) "实验助理研究" else "实验室 科技升级"
+                        val slotName = if (isExtra) "实验室学徒 (协助加速)" else "实验室 科技升级"
+                        val targetTitle = if (isExtra) "协助加速 $unitName (升至 Lv.${lvl + 1})" else "$unitName 升至 Lv.${lvl + 1}"
                         taskList.add(
                             ClashTask(
                                 id = "${accountId}_lab_${i}",
@@ -118,9 +128,9 @@ object ClashJsonParser {
                                 accountName = accountName,
                                 category = TaskCategory.LABORATORY,
                                 slotName = slotName,
-                                targetName = "$unitName 升至 Lv.${lvl + 1}",
-                                startTimeMs = nowMs - 1000L,
-                                totalDurationMs = remainingMs + 1000L,
+                                targetName = targetTitle,
+                                startTimeMs = nowMs,
+                                totalDurationMs = remainingMs,
                                 isRunning = remainingMs > 0L
                             )
                         )
@@ -137,7 +147,7 @@ object ClashJsonParser {
                         val dataId = s.optInt("data", 0)
                         val lvl = s.optInt("lvl", 1)
                         val timerSec = s.optLong("timer", 0L)
-                        val remainingMs = (timerSec * 1000L - elapsedMs).coerceAtLeast(0L)
+                        val remainingMs = (timerSec * 1000L).coerceAtLeast(0L)
                         val spellName = getSpellName(dataId)
 
                         taskList.add(
@@ -148,8 +158,8 @@ object ClashJsonParser {
                                 category = TaskCategory.LABORATORY,
                                 slotName = "实验室 法术升级",
                                 targetName = "$spellName 升至 Lv.${lvl + 1}",
-                                startTimeMs = nowMs - 1000L,
-                                totalDurationMs = remainingMs + 1000L,
+                                startTimeMs = nowMs,
+                                totalDurationMs = remainingMs,
                                 isRunning = remainingMs > 0L
                             )
                         )
@@ -167,7 +177,7 @@ object ClashJsonParser {
                         val dataId = sm.optInt("data", 0)
                         val lvl = sm.optInt("lvl", 1)
                         val timerSec = sm.optLong("timer", 0L)
-                        val remainingMs = (timerSec * 1000L - elapsedMs).coerceAtLeast(0L)
+                        val remainingMs = (timerSec * 1000L).coerceAtLeast(0L)
                         val siegeName = getSiegeMachineName(dataId)
 
                         taskList.add(
@@ -178,8 +188,8 @@ object ClashJsonParser {
                                 category = TaskCategory.LABORATORY,
                                 slotName = "实验室 攻城机器升级",
                                 targetName = "$siegeName 升至 Lv.${lvl + 1}",
-                                startTimeMs = nowMs - 1000L,
-                                totalDurationMs = remainingMs + 1000L,
+                                startTimeMs = nowMs,
+                                totalDurationMs = remainingMs,
                                 isRunning = remainingMs > 0L
                             )
                         )
@@ -214,7 +224,7 @@ object ClashJsonParser {
                         val dataId = p.optInt("data", 0)
                         val lvl = p.optInt("lvl", 1)
                         val timerSec = p.optLong("timer", 0L)
-                        val remainingMs = (timerSec * 1000L - elapsedMs).coerceAtLeast(0L)
+                        val remainingMs = (timerSec * 1000L).coerceAtLeast(0L)
                         val petName = getPetName(dataId)
 
                         taskList.add(
@@ -225,8 +235,8 @@ object ClashJsonParser {
                                 category = TaskCategory.HERO_PET,
                                 slotName = "战宠小屋",
                                 targetName = "$petName 升至 Lv.${lvl + 1}",
-                                startTimeMs = nowMs - 1000L,
-                                totalDurationMs = remainingMs + 1000L,
+                                startTimeMs = nowMs,
+                                totalDurationMs = remainingMs,
                                 isRunning = remainingMs > 0L
                             )
                         )
@@ -244,7 +254,7 @@ object ClashJsonParser {
                         val dataId = h.optInt("data", 0)
                         val lvl = h.optInt("lvl", 1)
                         val timerSec = h.optLong("timer", 0L)
-                        val remainingMs = (timerSec * 1000L - elapsedMs).coerceAtLeast(0L)
+                        val remainingMs = (timerSec * 1000L).coerceAtLeast(0L)
                         val heroName = getHeroName(dataId)
 
                         taskList.add(
@@ -255,8 +265,8 @@ object ClashJsonParser {
                                 category = TaskCategory.HERO_PET,
                                 slotName = "英雄王座",
                                 targetName = "$heroName 升至 Lv.${lvl + 1}",
-                                startTimeMs = nowMs - 1000L,
-                                totalDurationMs = remainingMs + 1000L,
+                                startTimeMs = nowMs,
+                                totalDurationMs = remainingMs,
                                 isRunning = remainingMs > 0L
                             )
                         )
@@ -272,7 +282,7 @@ object ClashJsonParser {
                         accountId = accountId,
                         accountName = accountName,
                         category = TaskCategory.HERO_PET,
-                        slotName = "英雄/战宠 升级",
+                        slotName = "战宠小屋",
                         targetName = "",
                         startTimeMs = 0L,
                         totalDurationMs = 0L,
@@ -323,49 +333,51 @@ object ClashJsonParser {
     }
 
     /**
-     * 建筑名称对照（严格依据 coc.zmmmgo.cc.cd）
+     * 建筑名称对照（严格依据 Supercell 官方 CSV 与 coc.zmmmgo.cc.cd）
      */
     private fun getBuildingName(id: Int): String {
         return when (id) {
-            1000000 -> "大本营"
-            1000001 -> "金矿"
+            1000000 -> "兵营"
+            1000001 -> "大本营"
             1000002 -> "圣水收集器"
             1000003 -> "圣水瓶"
-            1000004 -> "储金罐"
-            1000005 -> "加农炮"
-            1000006 -> "箭塔"
-            1000007 -> "城墙"
-            1000009 -> "法师塔"
-            1000010 -> "防空火箭"
-            1000011 -> "迫击炮"
-            1000012 -> "部落城堡"
-            1000013 -> "建筑工人小屋"
-            1000014 -> "兵营"
-            1000015 -> "训练营"
-            1000019 -> "实验室"
-            1000020 -> "暗黑重油罐"
-            1000021 -> "暗黑重油钻井"
-            1000023 -> "法术工厂"
-            1000024 -> "X连弩"
+            1000004 -> "金矿"
+            1000005 -> "储金罐"
+            1000006 -> "训练营"
+            1000007 -> "实验室"
+            1000008 -> "加农炮"
+            1000009 -> "箭塔"
+            1000010 -> "城墙"
+            1000011 -> "法师塔"
+            1000012 -> "防空火箭"
+            1000013 -> "迫击炮"
+            1000014 -> "部落城堡"
+            1000015 -> "建筑工人小屋"
+            1000019 -> "特斯拉电磁塔"
+            1000020 -> "法术工厂"
+            1000021 -> "X连弩"
+            1000023 -> "暗黑重油钻井"
+            1000024 -> "暗黑重油罐"
             1000026 -> "暗黑训练营"
-            1000027 -> "特斯拉电磁塔"
-            1000028 -> "炸弹塔"
-            1000029 -> "地狱之塔"
-            1000032 -> "天鹰火炮"
+            1000027 -> "地狱之塔"
+            1000028 -> "空气炮"
+            1000029 -> "暗黑法术工厂"
+            1000031 -> "天鹰火炮"
+            1000032 -> "炸弹塔"
             1000059 -> "攻城机器工坊"
-            1000064 -> "战宠小屋"
+            1000064, 1000068 -> "战宠小屋"
             1000067 -> "投石炮"
-            1000068 -> "战宠小屋"
-            1000070 -> "暗黑法术工厂"
+            1000070 -> "铁匠铺"
             1000071 -> "英雄殿堂"
             1000072 -> "法术塔"
             1000077 -> "巨石碑"
-            1000079 -> "多轮齿轮塔"
-            1000084 -> "法术塔"
+            1000079 -> "多功能齿轮塔"
+            1000084 -> "多人箭塔"
             1000085 -> "跳弹加农炮"
-            1000089 -> "多人箭塔"
+            1000086 -> "复仇之塔"
+            1000089 -> "火焰喷射器"
             1000093 -> "学徒小屋"
-            1000097 -> "铁匠铺"
+            1000097 -> "精制工坊"
             1000102 -> "熔岩喷发器"
             else -> "村庄工程 ($id)"
         }
@@ -455,8 +467,7 @@ object ClashJsonParser {
             73000010 -> "灵狐"
             73000011 -> "愤怒水母"
             73000016 -> "阿啾"
-            73000017 -> "贪婪渡鸦"
-            73000018 -> "贪婪渡鸦"
+            73000017, 73000018 -> "贪婪渡鸦"
             else -> "战宠 ($id)"
         }
     }
