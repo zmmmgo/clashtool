@@ -292,7 +292,7 @@ class TaskRepository(context: Context) {
     }
 
     // --- GitHub 仓库配置 ---
-    fun getGithubOwner(): String = prefs.getString(KEY_GITHUB_OWNER, "ZMG") ?: "ZMG"
+    fun getGithubOwner(): String = prefs.getString(KEY_GITHUB_OWNER, "zmmmgo") ?: "zmmmgo"
     fun getGithubRepo(): String = prefs.getString(KEY_GITHUB_REPO, "clashtool") ?: "clashtool"
     fun saveGithubRepo(owner: String, repo: String) {
         prefs.edit()

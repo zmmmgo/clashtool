@@ -29,7 +29,7 @@ data class UpdateInfo(
 
 object UpdateManager {
 
-    const val DEFAULT_GITHUB_OWNER = "ZMG"
+    const val DEFAULT_GITHUB_OWNER = "zmmmgo"
     const val DEFAULT_GITHUB_REPO = "clashtool"
 
     /**
