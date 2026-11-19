@@ -3,10 +3,12 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = 8888;
-const APK_PATH = path.join(__dirname, 'ClashTool_v1.0.apk');
+const apkFiles = ['ClashTool_v1.1.apk', 'ClashTool_v1.0.apk'];
+const latestApk = apkFiles.find(f => fs.existsSync(path.join(__dirname, f))) || 'ClashTool_v1.1.apk';
+const APK_PATH = path.join(__dirname, latestApk);
 
 const server = http.createServer((req, res) => {
-    if (req.url === '/download' || req.url === '/ClashTool_v1.0.apk') {
+    if (req.url === '/download' || req.url.endsWith('.apk')) {
         if (!fs.existsSync(APK_PATH)) {
             res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
             return res.end('APK 文件未找到');
@@ -15,7 +17,7 @@ const server = http.createServer((req, res) => {
         res.writeHead(200, {
             'Content-Type': 'application/vnd.android.package-archive',
             'Content-Length': stat.size,
-            'Content-Disposition': 'attachment; filename="ClashTool_v1.0.apk"',
+            'Content-Disposition': `attachment; filename="${latestApk}"`,
             'Cache-Control': 'no-cache'
         });
         const readStream = fs.createReadStream(APK_PATH);
@@ -30,7 +32,7 @@ const server = http.createServer((req, res) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>下载部落冲突提醒助手</title>
+    <title>下载部落冲突助手</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         body { background: #12131A; color: #FFF; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
@@ -46,8 +48,8 @@ const server = http.createServer((req, res) => {
 <body>
     <div class="card">
         <div class="icon">⚔️</div>
-        <h1>部落冲突提醒助手</h1>
-        <p>版本 v1.0 • 大小约 ${fileSizeMB} MB<br>多账号管理 • 建筑科技全自动提醒</p>
+        <h1>部落冲突助手</h1>
+        <p>版本 v1.1 • 大小约 ${fileSizeMB} MB<br>多账号管理 • 建筑科技全自动提醒</p>
         <a href="/download" class="btn">📥 立即下载安装包 (APK)</a>
         <div class="info">下载完成后在手机通知栏或文件管理中点击安装</div>
     </div>
