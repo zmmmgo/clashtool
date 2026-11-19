@@ -6,10 +6,10 @@ import java.util.Locale
 import java.util.UUID
 
 enum class TaskCategory(val displayName: String, val icon: String) {
-    HOME_BUILDER("主基地工人", "🔨"),
-    LABORATORY("实验室科技", "⚗️"),
-    HERO_PET("英雄与宠物", "👑"),
-    BUILDER_BASE("夜世界工人", "⚙️")
+    HOME_BUILDER("主世界", "🔨"),
+    LABORATORY("实验室", "⚗️"),
+    HERO_PET("宠物", "🐾"),
+    BUILDER_BASE("夜世界", "⚙️")
 }
 
 data class ClashTask(

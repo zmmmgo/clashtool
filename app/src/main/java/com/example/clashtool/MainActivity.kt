@@ -76,6 +76,7 @@ fun MainScreen() {
 
     var editingTask by remember { mutableStateOf<ClashTask?>(null) }
     var showAccountDialog by remember { mutableStateOf(false) }
+    var accountDialogAddMode by remember { mutableStateOf(false) }
     var showJsonImportDialog by remember { mutableStateOf(false) }
     var showUpdateDialog by remember { mutableStateOf(false) }
     var githubOwner by remember { mutableStateOf(repository.getGithubOwner()) }
@@ -139,7 +140,7 @@ fun MainScreen() {
             TopAppBar(
                 title = {
                     Text(
-                        text = "⚔️ 部落冲突 提醒助手",
+                        text = "⚔️ 部落冲突助手",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = GoldPrimary
@@ -160,7 +161,10 @@ fun MainScreen() {
                     Spacer(modifier = Modifier.width(4.dp))
 
                     // 账号管理按钮
-                    IconButton(onClick = { showAccountDialog = true }) {
+                    IconButton(onClick = {
+                        accountDialogAddMode = false
+                        showAccountDialog = true
+                    }) {
                         Text("⚙️", fontSize = 18.sp)
                     }
 
@@ -262,7 +266,10 @@ fun MainScreen() {
                             shape = RoundedCornerShape(10.dp),
                             color = DarkSurface,
                             border = BorderStroke(1.dp, DarkCardBorder),
-                            modifier = Modifier.clickable { showAccountDialog = true }
+                            modifier = Modifier.clickable {
+                                accountDialogAddMode = true
+                                showAccountDialog = true
+                            }
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
@@ -374,6 +381,7 @@ fun MainScreen() {
         AccountManageDialog(
             accounts = accountList,
             currentAccountId = currentAccount.id,
+            startInAddMode = accountDialogAddMode,
             onSelectAccount = { selectedAcc ->
                 repository.setCurrentAccountId(selectedAcc.id)
                 currentAccount = selectedAcc

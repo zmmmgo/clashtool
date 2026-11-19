@@ -1,4 +1,4 @@
-# ⚔️ ClashTool - 部落冲突 升级倒计时与提醒助手 (v1.0)
+# ⚔️ 部落冲突助手 (v1.0)
 
 <p align="center">
   <img src="app/src/main/res/drawable/app_icon.jpg" width="128" height="128" alt="ClashTool Icon" style="border-radius: 20%;" />

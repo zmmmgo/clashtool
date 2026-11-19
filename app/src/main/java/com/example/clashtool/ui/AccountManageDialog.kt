@@ -29,6 +29,7 @@ private const val DEFAULT_API_TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiIsImtpZ
 fun AccountManageDialog(
     accounts: List<ClashAccount>,
     currentAccountId: String,
+    startInAddMode: Boolean = false,
     onSelectAccount: (ClashAccount) -> Unit,
     onAddAccount: (name: String, tag: String, token: String, thLevel: Int, clan: String) -> Unit,
     onUpdateAccount: (ClashAccount) -> Unit,
@@ -38,7 +39,7 @@ fun AccountManageDialog(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
-    var showAddSection by remember { mutableStateOf(false) }
+    var showAddSection by remember { mutableStateOf(startInAddMode) }
     var newAccountName by remember { mutableStateOf("") }
     var newPlayerTag by remember { mutableStateOf("") }
     var newApiToken by remember { mutableStateOf(DEFAULT_API_TOKEN) }
@@ -90,6 +91,8 @@ fun AccountManageDialog(
 
                 // 新增账号表单
                 if (showAddSection) {
+                    var showApiSync by remember { mutableStateOf(false) }
+
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = DarkCard),
@@ -97,7 +100,7 @@ fun AccountManageDialog(
                     ) {
                         Column(
                             modifier = Modifier.padding(14.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Text(
                                 text = "添加新村庄账号",
@@ -107,25 +110,10 @@ fun AccountManageDialog(
                             )
 
                             OutlinedTextField(
-                                value = newPlayerTag,
-                                onValueChange = { newPlayerTag = it },
-                                label = { Text("玩家标签 (#TAG)") },
-                                placeholder = { Text("如：#9V0L8C29") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = GoldPrimary,
-                                    unfocusedBorderColor = DarkCardBorder,
-                                    focusedTextColor = TextPrimary,
-                                    unfocusedTextColor = TextPrimary
-                                )
-                            )
-
-                            OutlinedTextField(
                                 value = newAccountName,
                                 onValueChange = { newAccountName = it },
-                                label = { Text("村庄名称/备注（可留空点击同步自动获取）") },
-                                placeholder = { Text("如：主号、16本小号") },
+                                label = { Text("账号名称 / 备注（可直接输入）") },
+                                placeholder = { Text("如：小号、部落战小号 (留空自动命名)") },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = OutlinedTextFieldDefaults.colors(
@@ -136,62 +124,114 @@ fun AccountManageDialog(
                                 )
                             )
 
-                            // 操作按钮：一键联网同步 / 保存
+                            // 快捷直接添加按钮 (不强制填写标签，添加后可直接导入JSON)
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.End,
+                                horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 TextButton(onClick = { showAddSection = false }) {
-                                    Text("取消", color = TextSecondary)
+                                    Text("取消", color = TextSecondary, fontSize = 12.sp)
                                 }
 
-                                Spacer(modifier = Modifier.width(6.dp))
-
-                                // 联网自动同步按钮
                                 Button(
                                     onClick = {
-                                        if (newPlayerTag.isBlank()) {
-                                            Toast.makeText(context, "请先输入玩家标签 (如 #XXXXXX)", Toast.LENGTH_SHORT).show()
-                                            return@Button
+                                        val finalName = newAccountName.trim().ifEmpty {
+                                            "村庄小号 ${accounts.size + 1}"
                                         }
-                                        isSyncing = true
-                                        coroutineScope.launch {
-                                            val result = ClashApiService.fetchPlayerProfile(newPlayerTag, newApiToken)
-                                            isSyncing = false
-                                            result.onSuccess { profile ->
-                                                newAccountName = profile.name
-                                                onAddAccount(
-                                                    profile.name,
-                                                    profile.tag,
-                                                    newApiToken,
-                                                    profile.townHallLevel,
-                                                    profile.clanName ?: ""
-                                                )
-                                                showAddSection = false
-                                                Toast.makeText(
-                                                    context,
-                                                    "🎉 同步成功！欢迎首领 ${profile.name} (${profile.townHallLevel}级大本营)",
-                                                    Toast.LENGTH_LONG
-                                                ).show()
-                                            }.onFailure { err ->
-                                                Toast.makeText(context, "同步失败: ${err.message}", Toast.LENGTH_LONG).show()
-                                            }
-                                        }
+                                        onAddAccount(
+                                            finalName,
+                                            newPlayerTag.trim(),
+                                            newApiToken,
+                                            0,
+                                            ""
+                                        )
+                                        newAccountName = ""
+                                        newPlayerTag = ""
+                                        showAddSection = false
+                                        Toast.makeText(context, "🎉 已创建账号【$finalName】，点击「粘贴JSON」即可一键导入！", Toast.LENGTH_SHORT).show()
                                     },
-                                    enabled = !isSyncing && newPlayerTag.isNotBlank(),
                                     colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
                                 ) {
-                                    if (isSyncing) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(16.dp),
-                                            color = Color.Black,
-                                            strokeWidth = 2.dp
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text("同步中...", color = Color.Black, fontSize = 12.sp)
-                                    } else {
-                                        Text("🚀 自动同步并添加", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    Text("➕ 直接创建账号", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                }
+                            }
+
+                            // 可选展开：通过 API 联网同步
+                            TextButton(
+                                onClick = { showApiSync = !showApiSync },
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                Text(
+                                    text = if (showApiSync) "▲ 收起联网同步选项" else "▼ 或输入玩家标签联网同步资料 (可选)",
+                                    color = TextSecondary,
+                                    fontSize = 11.sp
+                                )
+                            }
+
+                            if (showApiSync) {
+                                OutlinedTextField(
+                                    value = newPlayerTag,
+                                    onValueChange = { newPlayerTag = it },
+                                    label = { Text("玩家标签 (#TAG)") },
+                                    placeholder = { Text("如：#9V0L8C29") },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = GoldPrimary,
+                                        unfocusedBorderColor = DarkCardBorder,
+                                        focusedTextColor = TextPrimary,
+                                        unfocusedTextColor = TextPrimary
+                                    )
+                                )
+
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                    Button(
+                                        onClick = {
+                                            if (newPlayerTag.isBlank()) {
+                                                Toast.makeText(context, "请先输入玩家标签 (如 #XXXXXX)", Toast.LENGTH_SHORT).show()
+                                                return@Button
+                                            }
+                                            isSyncing = true
+                                            coroutineScope.launch {
+                                                val result = ClashApiService.fetchPlayerProfile(newPlayerTag, newApiToken)
+                                                isSyncing = false
+                                                result.onSuccess { profile ->
+                                                    val finalName = if (newAccountName.isNotBlank()) newAccountName.trim() else profile.name
+                                                    onAddAccount(
+                                                        finalName,
+                                                        profile.tag,
+                                                        newApiToken,
+                                                        profile.townHallLevel,
+                                                        profile.clanName ?: ""
+                                                    )
+                                                    newAccountName = ""
+                                                    newPlayerTag = ""
+                                                    showAddSection = false
+                                                    Toast.makeText(
+                                                        context,
+                                                        "🎉 联网同步成功！已添加首领 ${profile.name} (${profile.townHallLevel}本)",
+                                                        Toast.LENGTH_LONG
+                                                    ).show()
+                                                }.onFailure { err ->
+                                                    Toast.makeText(context, "同步失败: ${err.message}", Toast.LENGTH_LONG).show()
+                                                }
+                                            }
+                                        },
+                                        enabled = !isSyncing && newPlayerTag.isNotBlank(),
+                                        colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary)
+                                    ) {
+                                        if (isSyncing) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(14.dp),
+                                                color = Color.Black,
+                                                strokeWidth = 2.dp
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text("同步中...", color = Color.Black, fontSize = 11.sp)
+                                        } else {
+                                            Text("🚀 联网同步添加", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                        }
                                     }
                                 }
                             }
